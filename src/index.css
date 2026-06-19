@@ -249,6 +249,7 @@ input {
 .input-card h2 {
   margin: 0 0 0.5rem;
   font-size: clamp(1.5rem, 2.2vw, 2rem);
+  color: #ffffff;
 }
 
 .input-card p {
