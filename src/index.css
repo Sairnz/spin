@@ -94,7 +94,7 @@ input {
 .wheel {
   width: 100%;
   height: 100%;
-  transition: transform 3.2s ease-out;
+  transition: none;
   border-radius: 50%;
   background: transparent;
   transform: translateZ(0);
@@ -282,8 +282,8 @@ input {
   border-radius: 14px;
   padding: 0.95rem 1.25rem;
   cursor: pointer;
-  background: linear-gradient(135deg, #22c55e, #0ea5e9);
-  color: #ffffff;
+  background: #ffffff;
+  color: #111827;
   font-weight: 700;
   transition: transform 0.2s ease, filter 0.2s ease;
 }

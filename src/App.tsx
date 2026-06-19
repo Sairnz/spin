@@ -48,6 +48,33 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
   ].join(' ');
 }
 
+function calculateSpin(
+  numberOfNames: number,
+  winnerIndex: number,
+  duration = 10,
+  extraSpins = 8
+) {
+  const anglePerSlice = 360 / numberOfNames;
+
+  const targetAngle =
+    360 -
+    (winnerIndex * anglePerSlice + anglePerSlice / 2);
+
+  const totalRotation = extraSpins * 360 + targetAngle;
+
+  const initialSpeed = (2 * totalRotation) / duration;
+
+  const deceleration = -initialSpeed / duration;
+
+  return {
+    anglePerSlice,
+    targetAngle,
+    totalRotation,
+    initialSpeed,
+    deceleration,
+  };
+}
+
 function App() {
   const [names, setNames] = useState<string[]>([
     'Ali',
@@ -66,6 +93,12 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [resultVisible, setResultVisible] = useState(false);
   const targetIndexRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const animationStartTimeRef = useRef<number | null>(null);
+  const startRotationRef = useRef<number>(0);
+  const targetRotationRef = useRef<number>(0);
+  const initialSpeedRef = useRef<number>(0);
+  const decelerationRef = useRef<number>(0);
 
   const segmentAngle = useMemo(() => (names.length > 0 ? 360 / names.length : 360), [names.length]);
 
@@ -114,34 +147,75 @@ function App() {
     setResultVisible(false);
   };
 
-  const spinWheel = () => {
-    if (names.length === 0 || spinning) return;
-    const index = Math.floor(Math.random() * names.length);
-    targetIndexRef.current = index;
-
-    const baseRotation = 360 * 6;
-    const pointerAngle = 90;
-    const targetSegmentAngle = segmentAngle * index + segmentAngle / 2;
-    const newRotation = rotation + baseRotation + pointerAngle - targetSegmentAngle;
-
-    setRotation(newRotation);
-    setSpinning(true);
-    setSelected(null);
-  };
-
   const resolveSelectedIndex = (rotationDegrees: number) => {
     const normalized = ((90 - rotationDegrees) % 360 + 360) % 360;
     return Math.min(names.length - 1, Math.floor(normalized / segmentAngle));
   };
 
-  const onTransitionEnd = () => {
+  const activeIndex = names.length > 0 ? resolveSelectedIndex(rotation) : null;
+
+  const finishSpin = () => {
     setSpinning(false);
-    const resolvedIndex = resolveSelectedIndex(rotation);
+    const resolvedIndex = resolveSelectedIndex(targetRotationRef.current);
     const record = names[resolvedIndex];
+    setRotation(targetRotationRef.current);
     setSelected(record);
     setSelectedIndex(resolvedIndex);
     setResultVisible(true);
     targetIndexRef.current = null;
+    animationStartTimeRef.current = null;
+    animationFrameRef.current = null;
+  };
+
+  const animateSpin = (timestamp: number) => {
+    if (animationStartTimeRef.current === null) {
+      animationStartTimeRef.current = timestamp;
+    }
+
+    const elapsed = timestamp - animationStartTimeRef.current;
+    const totalDuration = 13000;
+    const elapsedSeconds = elapsed / 1000;
+    const angle =
+      initialSpeedRef.current * elapsedSeconds +
+      0.5 * decelerationRef.current * elapsedSeconds * elapsedSeconds;
+    const currentRotation = startRotationRef.current + angle;
+
+    setRotation(currentRotation);
+
+    if (elapsed < totalDuration) {
+      animationFrameRef.current = requestAnimationFrame(animateSpin);
+    } else {
+      finishSpin();
+    }
+  };
+
+  const spinWheel = () => {
+    if (names.length === 0 || spinning) return;
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const index = Math.floor(Math.random() * names.length);
+    targetIndexRef.current = index;
+    startRotationRef.current = rotation;
+
+    const totalDuration = 13000;
+    const { totalRotation, initialSpeed, deceleration } = calculateSpin(
+      names.length,
+      index,
+      totalDuration / 1000,
+      8
+    );
+
+    targetRotationRef.current = rotation + totalRotation;
+    initialSpeedRef.current = initialSpeed;
+    decelerationRef.current = deceleration;
+
+    setSelected(null);
+    setSelectedIndex(null);
+    setResultVisible(false);
+    setSpinning(true);
+    animationFrameRef.current = requestAnimationFrame(animateSpin);
   };
 
   return (
@@ -156,18 +230,28 @@ function App() {
         </div>
         <div className="penguin-belly">
           <div className="wheel-shell">
-            <div className="pointer" />
+            <div
+              className="pointer"
+              style={{ borderRightColor: activeIndex !== null ? segments[activeIndex].fill : '#facc15' }}
+            />
             <svg
               className="wheel"
               viewBox="0 0 520 520"
               style={{ transform: `rotate(${rotation}deg)` }}
-              onTransitionEnd={onTransitionEnd}
             >
               {segments.map((segment, index) => {
                 const textPos = polarToCartesian(260, 260, 165, segment.textAngle);
+                const isSelected = activeIndex === index;
                 return (
                   <g key={`${segment.name}-${index}`}>
-                    <path d={segment.path} fill={segment.fill} stroke="none" />
+                    <path
+                      d={segment.path}
+                      fill={segment.fill}
+                      stroke={isSelected ? segment.fill : 'none'}
+                      strokeWidth={isSelected ? 10 : 0}
+                      strokeLinejoin="round"
+                      style={isSelected ? { filter: 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.25))' } : undefined}
+                    />
                     <text
                       x={textPos.x}
                       y={textPos.y}
